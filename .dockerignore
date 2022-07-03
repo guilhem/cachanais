@@ -1,0 +1,10 @@
+# Ignore everything
+*
+
+# But not these files...
+!*.go
+!go.sum
+!go.mod
+
+# ...even if they are in subdirectories
+!*/*.go
