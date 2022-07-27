@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -46,10 +47,13 @@ func Execute() {
 	}
 }
 
-var connectURL string
-var scrapingURL string
-var cookies []string
-var headers []string
+var (
+	connectURL         string
+	scrapingURL        string
+	cookies            []string
+	headers            []string
+	filterQueryStrings bool
+)
 
 func init() {
 	// Here you will define your flags and configuration settings.
@@ -66,6 +70,8 @@ func init() {
 	rootCmd.Flags().StringSliceVar(&cookies, "cookies", []string{}, "Cookies to set in the form key:value")
 
 	rootCmd.Flags().StringSliceVar(&headers, "headers", []string{}, "Headers to set in the form key:value")
+
+	rootCmd.Flags().BoolVar(&filterQueryStrings, "filter-query-strings", false, "filter url with query strings")
 
 	rootCmd.Example = "cachanais --url https://text.com --address http://localhost --cookies mycookie:sup --headers X-Cool:blop"
 
@@ -103,11 +109,17 @@ func crawl(cmd *cobra.Command, args []string) error {
 		parsedHeaders[h[0]] = h[1]
 	}
 
+	regexpQueryString := "[\\?&]([^&=]+)=([^&=]+)"
+
 	c := colly.NewCollector(
 		colly.AllowedDomains(u.Host, connectU.Host),
 		colly.IgnoreRobotsTxt(),
 		colly.Headers(parsedHeaders),
 	)
+
+	if filterQueryStrings {
+		c.DisallowedURLFilters = []*regexp.Regexp{regexp.MustCompile(regexpQueryString)}
+	}
 
 	parsedCookies := make([]*http.Cookie, 0, len(cookies))
 
@@ -130,7 +142,10 @@ func crawl(cmd *cobra.Command, args []string) error {
 
 	// Find and visit all links
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
-		e.Request.Visit(e.Attr("href"))
+		link := e.Attr("href")
+		if err := e.Request.Visit(link); err != nil {
+			fmt.Println("error with link", link)
+		}
 	})
 
 	c.OnRequest(func(r *colly.Request) {
