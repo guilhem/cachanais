@@ -148,6 +148,8 @@ func crawl(cmd *cobra.Command, args []string) error {
 	}
 
 	c.SetRequestTimeout(time.Minute)
+	c.MaxDepth = 3
+	c.DetectCharset = true
 
 	// Find and visit all links
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
