@@ -121,6 +121,15 @@ func crawl(cmd *cobra.Command, args []string) error {
 		c.DisallowedURLFilters = []*regexp.Regexp{regexp.MustCompile(regexpQueryString)}
 	}
 
+	// limit requests
+	if err := c.Limit(&colly.LimitRule{
+		DomainGlob:  "*",
+		Parallelism: 1,
+		RandomDelay: 5 * time.Second,
+	}); err != nil {
+		return err
+	}
+
 	parsedCookies := make([]*http.Cookie, 0, len(cookies))
 
 	for _, cookie := range cookies {
@@ -144,7 +153,7 @@ func crawl(cmd *cobra.Command, args []string) error {
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		link := e.Attr("href")
 		if err := e.Request.Visit(link); err != nil {
-			fmt.Println("error with link", link)
+			return // yes useless
 		}
 	})
 
