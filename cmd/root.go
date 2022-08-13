@@ -53,6 +53,8 @@ var (
 	cookies            []string
 	headers            []string
 	filterQueryStrings bool
+	maxRequests        uint32
+	delay              time.Duration
 )
 
 func init() {
@@ -72,6 +74,10 @@ func init() {
 	rootCmd.Flags().StringSliceVar(&headers, "headers", []string{}, "Headers to set in the form key:value")
 
 	rootCmd.Flags().BoolVar(&filterQueryStrings, "filter-query-strings", false, "filter url with query strings")
+
+	rootCmd.Flags().DurationVar(&delay, "delay", 5*time.Second, "delay between request")
+
+	rootCmd.Flags().Uint32Var(&maxRequests, "max-requests", uint32(100), "max request")
 
 	rootCmd.Example = "cachanais --url https://text.com --address http://localhost --cookies mycookie:sup --headers X-Cool:blop"
 
@@ -125,7 +131,8 @@ func crawl(cmd *cobra.Command, args []string) error {
 	if err := c.Limit(&colly.LimitRule{
 		DomainGlob:  "*",
 		Parallelism: 1,
-		RandomDelay: 5 * time.Second,
+		Delay:       delay,
+		RandomDelay: delay,
 	}); err != nil {
 		return err
 	}
@@ -150,6 +157,7 @@ func crawl(cmd *cobra.Command, args []string) error {
 	c.SetRequestTimeout(time.Minute)
 	c.MaxDepth = 3
 	c.DetectCharset = true
+	c.MaxRequests = maxRequests
 
 	// Find and visit all links
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
