@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -170,7 +171,12 @@ func crawl(cmd *cobra.Command, args []string) error {
 	c.OnRequest(func(r *colly.Request) {
 		r.URL.Host = connectU.Host
 		r.URL.Scheme = connectU.Scheme
-		fmt.Println("Visiting", r.URL)
+		log.Println("Visiting", r.URL)
+	})
+
+	c.OnError(func(r *colly.Response, err error) {
+		log.Printf("Get error on %s: %v", r.Request.URL, err)
+		// don't retry
 	})
 
 	if err := c.Visit(scrapingURL); err != nil {
