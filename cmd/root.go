@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -53,6 +54,8 @@ var (
 	cookies            []string
 	headers            []string
 	filterQueryStrings bool
+	maxRequests        uint32
+	delay              time.Duration
 )
 
 func init() {
@@ -72,6 +75,10 @@ func init() {
 	rootCmd.Flags().StringSliceVar(&headers, "headers", []string{}, "Headers to set in the form key:value")
 
 	rootCmd.Flags().BoolVar(&filterQueryStrings, "filter-query-strings", false, "filter url with query strings")
+
+	rootCmd.Flags().DurationVar(&delay, "delay", 5*time.Second, "delay between request")
+
+	rootCmd.Flags().Uint32Var(&maxRequests, "max-requests", uint32(100), "max request")
 
 	rootCmd.Example = "cachanais --url https://text.com --address http://localhost --cookies mycookie:sup --headers X-Cool:blop"
 
@@ -121,6 +128,16 @@ func crawl(cmd *cobra.Command, args []string) error {
 		c.DisallowedURLFilters = []*regexp.Regexp{regexp.MustCompile(regexpQueryString)}
 	}
 
+	// limit requests
+	if err := c.Limit(&colly.LimitRule{
+		DomainGlob:  "*",
+		Parallelism: 1,
+		Delay:       delay,
+		RandomDelay: delay,
+	}); err != nil {
+		return err
+	}
+
 	parsedCookies := make([]*http.Cookie, 0, len(cookies))
 
 	for _, cookie := range cookies {
@@ -139,19 +156,27 @@ func crawl(cmd *cobra.Command, args []string) error {
 	}
 
 	c.SetRequestTimeout(time.Minute)
+	c.MaxDepth = 3
+	c.DetectCharset = true
+	c.MaxRequests = maxRequests
 
 	// Find and visit all links
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		link := e.Attr("href")
 		if err := e.Request.Visit(link); err != nil {
-			fmt.Println("error with link", link)
+			return // yes useless
 		}
 	})
 
 	c.OnRequest(func(r *colly.Request) {
 		r.URL.Host = connectU.Host
 		r.URL.Scheme = connectU.Scheme
-		fmt.Println("Visiting", r.URL)
+		log.Println("Visiting", r.URL)
+	})
+
+	c.OnError(func(r *colly.Response, err error) {
+		log.Printf("Get error on %s: %v", r.Request.URL, err)
+		// don't retry
 	})
 
 	if err := c.Visit(scrapingURL); err != nil {
